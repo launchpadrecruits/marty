@@ -15,7 +15,7 @@ var FetchDiagnostics = require("./fetchDiagnostics");
 var DEFAULT_TIMEOUT = 1000;
 
 var Context = (function () {
-  function Context(registry) {
+  function Context(registry, values) {
     var _this = this;
 
     _classCallCheck(this, Context);
@@ -23,6 +23,10 @@ var Context = (function () {
     this.instances = {};
     this.id = uuid.type("Context");
     this.dispatcher = new Dispatcher();
+
+    if (values) {
+      _.extend(this, values);
+    }
 
     Instances.add(this);
 
@@ -51,8 +55,8 @@ var Context = (function () {
         });
 
         instance.deferredFetchDone = deferred();
-        instance.diagnostics = new FetchDiagnostics();
         fetchDone = instance.deferredFetchDone.promise;
+        instance.diagnostics = new FetchDiagnostics(options.prevDiagnostics);
 
         try {
           cb.call(this);
@@ -67,7 +71,7 @@ var Context = (function () {
         }
 
         return Promise.race([fetchDone, timeout(options.timeout)]).then(function () {
-          return instance.diagnostics.toJSON();
+          return instance.diagnostics;
         });
       }
     },

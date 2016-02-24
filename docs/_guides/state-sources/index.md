@@ -15,11 +15,7 @@ var UserAPI = Marty.createStateSource({
   id: 'UserAPI',
   baseUrl: 'http://foo.com',
   getUsers: function () {
-    return this.get('/users').then(function (res) {
-      this.dispatch(UserConstants.RECIEVE_USERS, res.body);
-    }.bind(this)).catch(function (err) {
-      this.dispatch(UserConstants.RECIEVE_USERS_FAILED, err);
-    });
+    return this.get('/users');
   },
   createUser: function (user) {
     return this.post('/users', { body: user });
@@ -36,16 +32,16 @@ class UserAPI extends Marty.HttpStateSource {
     this.baseUrl = 'http://foo.com';
   }
   getUsers() {
-    return this.get('/users')
-      .then((res) => this.dispatch(UserConstants.RECIEVE_USERS, res.body))
-      .catch((err) => this.dispatch(UserConstants.RECIEVE_USERS_FAILED, err));
+    return this.get('/users');
   }
   createUser(user) {
     return this.post('/users', { body: user });
   }
 }
 
-UserAPI.getUsers();
+var userAPI = Marty.register(UserAPI);
+
+userAPI.getUsers();
 {% endsample %}
 
 Marty comes with a number of state sources out of the box:

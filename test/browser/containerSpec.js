@@ -25,7 +25,7 @@ describe('Container', function () {
     Store = Marty.createStore({
       id: 'ContainerStore',
       getInitialState() {
-        return {}
+        return {};
       },
       addFoo(foo) {
         this.state[foo.id] = foo;
@@ -61,6 +61,77 @@ describe('Container', function () {
     });
   });
 
+  describe('component lifestyle', function () {
+    var ParentComponent;
+    var componentWillReceiveProps;
+    var componentWillUpdate;
+    var componentDidUpdate;
+    var componentDidMount;
+    var componentWillUnmount;
+    var componentWillMount;
+
+    beforeEach(function () {
+      componentWillReceiveProps = sinon.spy();
+      componentWillUpdate = sinon.spy();
+      componentDidUpdate = sinon.spy();
+      componentDidMount = sinon.spy();
+      componentWillUnmount = sinon.spy();
+      componentWillMount = sinon.spy();
+
+      ContainerComponent = wrap(InnerComponent, {
+        componentWillReceiveProps: componentWillReceiveProps,
+        componentWillUpdate: componentWillUpdate,
+        componentDidUpdate: componentDidUpdate,
+        componentDidMount: componentDidMount,
+        componentWillUnmount: componentWillUnmount,
+        componentWillMount: componentWillMount
+      });
+
+      ParentComponent = React.createClass({
+        render() {
+          return <div><ContainerComponent foo={this.state.foo} /></div>;
+        },
+        getInitialState() {
+          return {
+            foo: 'bar'
+          };
+        }
+      });
+
+      element = TestUtils.renderIntoDocument(<ParentComponent />);
+
+      element.setState({
+        foo: 'baz'
+      });
+
+      React.unmountComponentAtNode(element.getDOMNode().parentNode);
+    });
+
+    it('should call componentWillReceiveProps if passed in', function () {
+      expect(componentWillReceiveProps).to.be.calledOnce;
+    });
+
+    it('should call componentWillUpdate if passed in', function () {
+      expect(componentWillUpdate).to.be.calledOnce;
+    });
+
+    it('should call componentDidUpdate if passed in', function () {
+      expect(componentDidUpdate).to.be.calledOnce;
+    });
+
+    it('should call componentDidMount if passed in', function () {
+      expect(componentDidMount).to.be.calledOnce;
+    });
+
+    it('should call componentWillUnmount if passed in', function () {
+      expect(componentWillUnmount).to.be.calledOnce;
+    });
+
+    it('should call componentWillMount if passed in', function () {
+      expect(componentWillMount).to.be.calledOnce;
+    });
+  });
+
   describe('when I pass in a simple component', function () {
     beforeEach(function () {
       ContainerComponent = Marty.createContainer(InnerComponent);
@@ -74,13 +145,24 @@ describe('Container', function () {
       expect(ContainerComponent.InnerComponent).to.equal(InnerComponent);
     });
 
-    it('should set the display name', function () {
+    it('should set the display name on classical React components', function () {
       expect(render(ContainerComponent).refs.subject.constructor.displayName).to.eql('InnerComponentContainer');
+    });
+
+    it('should set the display name on ES6 React components', function () {
+      class ES6InnerComponent extends React.Component {
+        render() {
+          return React.createElement('div');
+        }
+      }
+
+      let ContainerES6Component = Marty.createContainer(ES6InnerComponent);
+      expect(render(ContainerES6Component).refs.subject.constructor.displayName).to.eql('ES6InnerComponentContainer');
     });
   });
 
   describe('when fetch is a function', function () {
-     beforeEach(function () {
+    beforeEach(function () {
       element = render(wrap(InnerComponent, {
         fetch() {
           return {
@@ -98,6 +180,41 @@ describe('Container', function () {
           baz: 'bam'
         }
       });
+    });
+  });
+
+  describe('#getInnerComponent()', function () {
+    beforeEach(function () {
+      ContainerComponent = wrap(InnerComponent, {
+        something() {
+          return this.getInnerComponent();
+        }
+      });
+      element = TestUtils.renderIntoDocument(<ContainerComponent />);
+    });
+
+    it('should return the inner component', function () {
+      expect(element.getInnerComponent()).to.equal(element.refs.innerComponent);
+    });
+
+    it('should be accessible inside other functions', function () {
+      expect(element.something()).to.equal(element.refs.innerComponent);
+    });
+  });
+
+  describe('when I pass in contextTypes', function () {
+    var expectedContextTypes;
+
+    beforeEach(function () {
+      element = wrap(InnerComponent, {
+        contextTypes: {
+          foo: React.PropTypes.object
+        }
+      });
+    });
+
+    it('should include them in the containers contextTypes', function () {
+      expect(element.contextTypes.foo).to.eql(React.PropTypes.object);
     });
   });
 
@@ -129,7 +246,53 @@ describe('Container', function () {
     });
 
     it('should make the marty context available in the current context', function () {
-      expect(fetchContext.context).to.equal(context);
+      expect(fetchContext.context.marty).to.eql(context);
+    });
+  });
+
+  describe('when the parent updates its props then it should update its childrens', function () {
+    var ParentComponent, fetch;
+
+    beforeEach(function () {
+      fetch = sinon.spy();
+      ContainerComponent = wrap(InnerComponent, {
+        fetch: {
+          bar: function () {
+            fetch(this.props);
+            return 'bam';
+          }
+        }
+      });
+
+      ParentComponent = React.createClass({
+        getInitialState() {
+          return {
+            foo: 'bar'
+          };
+        },
+        render() {
+          return <div><ContainerComponent foo={this.state.foo} /></div>;
+        }
+      });
+
+      var element = TestUtils.renderIntoDocument(<ParentComponent />);
+
+      element.replaceState({
+        foo: 'baz'
+      });
+    });
+
+    it('should update the inner components props', function () {
+      expect(updateProps).to.be.calledWith({
+        foo: 'baz',
+        bar: 'bam'
+      });
+    });
+
+    it('should refresh the props', function () {
+      expect(fetch).to.be.calledWith({
+        foo: 'baz'
+      });
     });
   });
 
@@ -155,6 +318,10 @@ describe('Container', function () {
         }
       });
     });
+
+    it('should make the marty context available in the current context', function () {
+      expect(fetchContext.context.marty).to.eql(context);
+    });
   });
 
   describe('when all of the fetchs are done and a done handler is not implemented', function () {
@@ -178,6 +345,104 @@ describe('Container', function () {
           baz: 'bam'
         }
       });
+    });
+  });
+
+  describe('when you are fetching from a store', function () {
+    var BarStore, finishQuery, expectedId;
+
+    beforeEach(function () {
+      expectedId = 456;
+      BarStore = Marty.createStore({
+        id: 'BarContainerStore',
+        getInitialState() {
+          return {};
+        },
+        addBar(bar) {
+          this.state[bar.id] = bar;
+          this.hasChanged();
+        },
+        getBar(id) {
+          return this.fetch({
+            id: 'bar-' + id,
+            locally() {
+              return this.state[id];
+            },
+            remotely() {
+              return new Promise(function (resolve) {
+                this.addBar({ id: id });
+                finishQuery = resolve;
+              }.bind(this));
+            }
+          })
+        }
+      });
+    });
+
+    describe('when the store is resolved to a context', function () {
+      beforeEach(function (done) {
+        ContainerComponent = wrap(InnerComponent, {
+          listenTo: BarStore,
+          fetch: {
+            bar() {
+              return BarStore.for(this).getBar(expectedId);
+            }
+          }
+        });
+
+        element = TestUtils.renderIntoDocument(<ContainerComponent />);
+
+        finishQuery();
+
+        setTimeout(done, 1);
+      });
+
+      it('should render the inner component when the fetch is complete', function () {
+        expect(initialProps).to.eql({
+          bar: { id: expectedId }
+        });
+      });
+    });
+
+    describe('when calling the store directly', function () {
+      beforeEach(function (done) {
+        ContainerComponent = wrap(InnerComponent, {
+          listenTo: BarStore,
+          fetch: {
+            bar() {
+              return BarStore.getBar(expectedId);
+            }
+          }
+        });
+
+        element = TestUtils.renderIntoDocument(<ContainerComponent />);
+
+        finishQuery();
+
+        setTimeout(done, 1);
+      });
+
+      it('should render the inner component when the fetch is complete', function () {
+        expect(initialProps).to.eql({
+          bar: { id: expectedId }
+        });
+      });
+    });
+  });
+
+  describe('when you pass in other functions', function () {
+    beforeEach(function () {
+      ContainerComponent = wrap(InnerComponent, {
+        something() {
+          return [this, 'foo'];
+        }
+      });
+
+      element = TestUtils.renderIntoDocument(<ContainerComponent />);
+    });
+
+    it('should expose the function with the element as the context', function () {
+      expect(element.something()).to.eql([element, 'foo']);
     });
   });
 
@@ -206,10 +471,6 @@ describe('Container', function () {
 
       expect(handler).to.be.calledWith(expectedResults);
     });
-
-    it('should make the marty context available in the current context', function () {
-      expect(handlerContext.context).to.equal(context);
-    });
   });
 
   describe('when a fetch is pending and there is a pending handler', function () {
@@ -221,6 +482,9 @@ describe('Container', function () {
           },
           bar() {
             return fetch.pending();
+          },
+          baz() {
+            return fetch.done('bam');
           }
         },
         pending: handler
@@ -231,8 +495,15 @@ describe('Container', function () {
       expect(handler).to.be.calledOnce;
     });
 
+    it('should pass in all the fetch results that have finished', function () {
+      expect(handler).to.be.calledWith({
+        foo: 'bar',
+        baz: 'bam'
+      });
+    });
+
     it('should make the marty context available in the current context', function () {
-      expect(handlerContext.context).to.equal(context);
+      expect(fetchContext.context.marty).to.eql(context);
     });
   });
 
@@ -272,7 +543,7 @@ describe('Container', function () {
     });
 
     it('should make the marty context available in the current context', function () {
-      expect(handlerContext.context).to.equal(context);
+      expect(fetchContext.context.marty).to.eql(context);
     });
   });
 

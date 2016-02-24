@@ -29,7 +29,7 @@ lint:
 	@$(BIN)/jscs --esprima=esprima-fb $(SRC);
 	@$(BIN)/jsxhint $(SRC);
 
-release: test
+release:
 	@inc=$(inc) sh ./build/release.sh
 
 watch:
@@ -52,7 +52,7 @@ build-browser:
 docs:
 	@cd docs && bundle exec jekyll serve -w
 
-release-docs: bootstrap-ruby
+release-docs:
 	@sh ./build/release-docs.sh
 
 prerelease-docs:

@@ -27,12 +27,20 @@ describeStyles('HttpStateSource', function (styles) {
   });
 
   describe('when you dont specify a baseUrl', function () {
-    var url;
+    var url, server;
 
     beforeEach(function () {
       url = baseUrl + 'foos';
+      server = sinon.fakeServer.create();
+      server.respondWith('GET', url, [200, {}, '']);
 
-      return httpStateSource().get(url).then(storeResponse);
+      var res = httpStateSource().get(url).then(storeResponse);
+      server.respond();
+      return res;
+    });
+
+    afterEach(function () {
+      server.restore();
     });
 
     it('should start a get request with the given url', function () {
@@ -49,7 +57,7 @@ describeStyles('HttpStateSource', function (styles) {
 
     beforeEach(function () {
       server = sinon.fakeServer.create();
-      server.respondWith('GET', '/foo', [400, {}, '']);
+      server.respondWith('GET', '/stub/foo', [200, {}, '']);
     });
 
     afterEach(function () {
@@ -118,24 +126,27 @@ describeStyles('HttpStateSource', function (styles) {
           hook1 = {
             id: '1',
             priority: 2,
-            after: sinon.spy(function () {
+            after: sinon.spy(function (res) {
               actualContext = this;
               executionOrder.push(1);
+              return res;
             })
           };
 
           hook2 = {
             id: '2',
-            after: sinon.spy(function () {
+            after: sinon.spy(function (res) {
               executionOrder.push(2);
+              return res;
             })
           };
 
           hook3 = {
             id: '3',
             priority: 1,
-            after: sinon.spy(function () {
+            after: sinon.spy(function (res) {
               executionOrder.push(3);
+              return res;
             })
           };
 
@@ -171,38 +182,12 @@ describeStyles('HttpStateSource', function (styles) {
     function get() {
       expectedStateSource = httpStateSource();
 
-      var res = expectedStateSource.get('/foo');
+      var res = expectedStateSource.get('/stub/foo');
 
       server.respond();
 
       return res;
     }
-  });
-
-  describe('when a request fails', function () {
-    var server, expectedResponse, actualError;
-
-    beforeEach(function () {
-      server = sinon.fakeServer.create();
-
-      server.respondWith('GET', '/foo', [400, {}, '']);
-
-      var res = httpStateSource().get('/foo');
-
-      server.respond();
-
-      return res.catch(function (error) {
-        actualError = error;
-      });
-    });
-
-    afterEach(function () {
-      server.restore();
-    });
-
-    it('should reject with the response object', function () {
-      expect(actualError).to.eql(expectedResponse);
-    });
   });
 
   describe('#get()', function () {

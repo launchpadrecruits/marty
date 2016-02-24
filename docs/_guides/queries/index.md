@@ -13,16 +13,19 @@ classic
 var UserQueries = Marty.createQueries({
   id: 'UserQueries',
   getUser: function (id) {
-    this.dispatch(UserActions.RECEIVE_USER_STARTING, id);
-    UserAPI.getUser(id).then(function (res) {
-      if (res.status === 200) {
-        this.dispatch(UserActions.RECEIVE_USER, res.body, id);
-      } else {
-        this.dispatch(UserActions.RECEIVE_USER_FAILED, id);
-      }
-    }.bind(this)).catch(function (err) {
-      this.dispatch(UserActions.RECEIVE_USER_FAILED, id, err);
-    }.bind(this))
+    this.dispatch(UserConstants.RECEIVE_USER_STARTING, id);
+    UserAPI.getUser(id).then(
+      function (res) {
+        if (res.status === 200) {
+          this.dispatch(UserConstants.RECEIVE_USER, res.body, id);
+        } else {
+          this.dispatch(UserConstants.RECEIVE_USER_FAILED, id);
+        }
+      }.bind(this),
+      function (err) {
+        this.dispatch(UserConstants.RECEIVE_USER_FAILED, id, err);
+      }.bind(this)
+    );
   }
 });
 
@@ -30,19 +33,24 @@ es6
 ===
 class UserQueries extends Marty.Queries {
   getUser(id) {
-    this.dispatch(UserActions.RECEIVE_USER_STARTING, id);
-    UserAPI.getUser(id).then((res) => {
-      if (res.status === 200) {
-        this.dispatch(UserActions.RECEIVE_USER, res.body, id);
-      } else {
-        this.dispatch(UserActions.RECEIVE_USER_FAILED, id);
-      }
-    }).catch((err) => this.dispatch(UserActions.RECEIVE_USER_FAILED, id, err));
+    this.dispatch(UserConstants.RECEIVE_USER_STARTING, id);
+    UserAPI.getUser(id).then(
+      res => {
+        if (res.status === 200) {
+          this.dispatch(UserConstants.RECEIVE_USER, res.body, id);
+        } else {
+          this.dispatch(UserConstants.RECEIVE_USER_FAILED, id);
+        }
+      },
+      err => this.dispatch(UserConstants.RECEIVE_USER_FAILED, id, err)
+    );
   }
 }
+
+export default Marty.register(UserQueries);
 {% endsample %}
 
 ##Why have Queries at all?
 
-One practical reason for queries is that you get a circular dependency if you're store tries to call an action creator from inside itself. Splitting reads form writes was an easy way of resolving this situation. You could just as easily use action creators but we've found having separate types for them makes the code base easier to navigate and understand.
+One practical reason for queries is that you get a circular dependency if your store tries to call an action creator from inside itself. Splitting reads from writes was an easy way of resolving this situation. You could just as easily use action creators, but we've found having separate types for them makes the codebase easier to navigate and understand.
 

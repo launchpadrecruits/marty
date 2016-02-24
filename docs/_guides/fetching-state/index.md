@@ -47,6 +47,8 @@ class UserStore extends Marty.Store {
   }
 }
 
+export default Marty.register(UserStore);
+
 {% endsample %}
 
 When you call fetch, Marty will first try calling the ``locally`` function. It the state is present in the store then it's returned and the fetch will finish executing. If the store can't find the state locally it should return ``undefined``. This causes the fetch function to invoke ``remotely``. Once ``remotely`` has finished executing then fetch will then re-execute the ``locally`` function with the expectation that the state is now in the store. If it isn't then the fetch will fail with a "Not found" error. If the ``remotely`` function needs to get the state asynchronously you can return a promise. The fetch function will wait for the promise to be resolved before re-executing ``locally``.
@@ -73,11 +75,14 @@ var UserQueries = Marty.createQueries({
   getUser: function (userId) {
     this.dispatch(UserConstants.RECEIVE_USER_STARTING, userId);
 
-    UserAPI.getUser(userId).then(function (res) {
-      this.dispatch(UserConstants.RECEIVE_USER, userId, res.body);
-    }.bind(this)).catch(function (err) {
-      this.dispatch(UserConstants.RECEIVE_USER_FAILED, userId, err);
-    }.bind(this));
+    return UserAPI.getUser(userId).then(
+      function (res) {
+        this.dispatch(UserConstants.RECEIVE_USER, userId, res.body);
+      }.bind(this)),
+      function (err) {
+        this.dispatch(UserConstants.RECEIVE_USER_FAILED, userId, err);
+      }.bind(this)
+    );
   }
 });
 
@@ -119,15 +124,21 @@ class UserAPI extends Marty.HttpStateSource {
   }
 }
 
+var userAPI = Marty.register(UserAPI);
+
 class UserQueries extends Marty.Queries {
   getUser(userId) {
     this.dispatch(UserConstants.RECEIVE_USER_STARTING, userId);
 
-    UserAPI.getUser(userId)
-      .then(res => this.dispatch(UserConstants.RECEIVE_USER, userId, res.body))
-      .catch(err => this.dispatch(UserConstants.RECEIVE_USER_FAILED, userId, err));
+    return userAPI.getUser(userId)
+      .then(
+        res => this.dispatch(UserConstants.RECEIVE_USER, userId, res.body),
+        err => this.dispatch(UserConstants.RECEIVE_USER_FAILED, userId, err)
+      );
   }
 }
+
+var userQueries = Marty.register(UserQueries);
 
 class UserStore extends Marty.Store {
   constructor(options) {
@@ -148,7 +159,7 @@ class UserStore extends Marty.Store {
         return this.state[userId];
       },
       remotely: function () {
-        return UserQueries.getUser(userId)
+        return userQueries.getUser(userId)
       }
     });
   }

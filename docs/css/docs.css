@@ -23,6 +23,19 @@ body {
   font-family: 'PT Serif', Cambria, Georgia, serif;
 }
 
+.sections-nav .job-ad {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: solid 1px #CCC;
+}
+
+ul.sections-nav > li.job-ad > a {
+  display: inline;
+  padding: 0;
+  color: #428bca;
+  font-weight: bold;
+}
+
 .devtools img {
   width: 100%;
   margin: 20px 0;
@@ -37,6 +50,8 @@ body {
   position: absolute;
   right: 0;
   top: 2px;
+  font-size: 11px;
+  font-style: 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Keep code small in tables on account of limited space */
@@ -47,6 +62,13 @@ body {
 
 .page-title .meta {
   font-size: 14px;
+}
+
+@media (max-width: 767px) {
+  .page-title .meta {
+    display: block;
+    margin-top: 10px;
+  }
 }
 
 /* Outline button for use within the docs */

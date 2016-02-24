@@ -2,12 +2,15 @@
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var React = require("react");
+var React = require("../react");
 var log = require("../logger");
 var _ = require("../utils/mindash");
 var uuid = require("../utils/uuid");
 var StoreObserver = require("../storeObserver");
 var getFetchResult = require("./getFetchResult");
+var getClassName = require("../utils/getClassName");
+
+var RESERVED_FUNCTIONS = ["contextTypes", "componentDidMount", "componentWillReceiveProps", "onStoreChanged", "componentWillUnmount", "getInitialState", "getState", "render"];
 
 function createContainer(InnerComponent, config) {
   config = config || {};
@@ -16,96 +19,101 @@ function createContainer(InnerComponent, config) {
     throw new Error("Must specify an inner component");
   }
 
-  var observer;
   var id = uuid.type("Component");
+  var innerComponentDisplayName = InnerComponent.displayName || getClassName(InnerComponent);
+  var contextTypes = _.extend({
+    marty: React.PropTypes.object
+  }, config.contextTypes);
 
-  var Container = React.createClass({
-    displayName: "Container",
-
-    contextTypes: {
-      marty: React.PropTypes.object
-    },
+  var specification = _.extend({
+    contextTypes: contextTypes,
     componentDidMount: function componentDidMount() {
       var component = {
         id: id,
-        displayName: InnerComponent.displayName
+        displayName: innerComponentDisplayName
       };
 
-      observer = new StoreObserver({
+      this.observer = new StoreObserver({
         component: component,
         onStoreChanged: this.onStoreChanged,
-        stores: getStoresToListenTo(config, component)
+        stores: getStoresToListenTo(this.listenTo, component)
       });
     },
+    componentWillReceiveProps: function componentWillReceiveProps(props) {
+      this.props = props;
+      this.setState(this.getState(props));
+    },
     onStoreChanged: function onStoreChanged() {
-      this.setState(this.getState());
+      if (this.isMounted()) {
+        this.setState(this.getState());
+      }
     },
     componentWillUnmount: function componentWillUnmount() {
-      if (observer) {
-        observer.dispose();
+      if (this.observer) {
+        this.observer.dispose();
       }
     },
     getInitialState: function getInitialState() {
-      var _this = this;
-
-      config = _.defaults(config, {
-        // Have a default implementation of done so it can be
-        // called from other handlers
-        done: function (results) {
-          return React.createElement(InnerComponent, _extends({}, _this.props, results));
-        }
-      });
-
       return this.getState();
     },
     getState: function getState() {
-      // Make the context available so you can call `.for(this)` within the handlers
-      config.context = this.context.marty;
-
-      // Make props available so you can pass them to the children
-      config.props = this.props;
-
       return {
-        result: getFetchResult(config)
+        result: getFetchResult(this)
       };
     },
+    done: function done(results) {
+      return React.createElement(InnerComponent, _extends({ ref: "innerComponent" }, this.props, results));
+    },
+    getInnerComponent: function getInnerComponent() {
+      return this.refs.innerComponent;
+    },
     render: function render() {
-      return this.state.result.when({
+      var container = this;
+      var result = this.state.result;
+
+      return result.when({
         done: function done(results) {
-          if (_.isFunction(config.done)) {
-            return config.done.call(config, results);
+          if (_.isFunction(container.done)) {
+            return container.done(results);
           }
 
           throw new Error("The `done` handler must be a function");
         },
         pending: function pending() {
-          if (_.isFunction(config.pending)) {
-            return config.pending.call(config);
+          if (_.isFunction(container.pending)) {
+            return container.pending(result.result);
           }
 
           return React.createElement("div", null);
         },
         failed: function failed(error) {
-          if (_.isFunction(config.failed)) {
-            return config.failed.call(config, error);
+          if (_.isFunction(container.failed)) {
+            return container.failed(error);
           }
 
           throw error;
         }
       });
     }
-  });
+  }, _.omit(config, RESERVED_FUNCTIONS));
+
+  // Include lifecycle methods if specified in config. We don't need to
+  // explicitly handle the ones that aren't in RESERVED_FUNCTIONS.
+  specification.componentDidMount = callBoth(specification.componentDidMount, config.componentDidMount);
+  specification.componentWillReceiveProps = callBothWithProps(specification.componentWillReceiveProps, config.componentWillReceiveProps);
+  specification.componentWillUnmount = callBoth(specification.componentWillUnmount, config.componentWillUnmount);
+
+  var Container = React.createClass(specification);
 
   Container.InnerComponent = InnerComponent;
+  Container.displayName = innerComponentDisplayName + "Container";
 
   return Container;
 }
 
 module.exports = createContainer;
 
-function getStoresToListenTo(config, component) {
-  var stores = config.listenTo;
-
+function getStoresToListenTo(stores, component) {
   if (!stores) {
     return [];
   }
@@ -123,4 +131,26 @@ function getStoresToListenTo(config, component) {
 
     return isStore;
   });
+}
+
+function callBoth(func1, func2) {
+  if (_.isFunction(func2)) {
+    return function () {
+      func1.call(this);
+      func2.call(this);
+    };
+  } else {
+    return func1;
+  }
+}
+
+function callBothWithProps(func1, func2) {
+  if (_.isFunction(func2)) {
+    return function (props) {
+      func1.call(this, props);
+      func2.call(this, props);
+    };
+  } else {
+    return func1;
+  }
 }

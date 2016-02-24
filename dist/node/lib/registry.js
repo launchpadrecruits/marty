@@ -33,8 +33,8 @@ var Registry = (function () {
       }
     },
     createContext: {
-      value: function createContext() {
-        return new Context(this);
+      value: function createContext(values) {
+        return new Context(this, values);
       }
     },
     get: {
@@ -83,7 +83,8 @@ var Registry = (function () {
         }
 
         clazz.id = id;
-        clazz.type = type;
+        defaultInstance.id = defaultInstance.id || id;
+        defaultInstance.type = clazz.type = type;
 
         this.types[type][id] = clazz;
 
